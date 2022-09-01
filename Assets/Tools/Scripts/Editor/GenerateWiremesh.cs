@@ -9,7 +9,8 @@ using System.IO;
 public class GenerateWiremesh : EditorWindow
 {
     GameObject currentSelectTarget;
-
+    bool isSkinnedMesh = true;
+    private bool isQuad = true;
     public struct Edge
     {
         public Vector3 v1;
@@ -17,33 +18,36 @@ public class GenerateWiremesh : EditorWindow
 
         public Edge(Vector3 v1, Vector3 v2)
         {
-          
+
            this.v1 = v2;
            this.v2 = v1;
-        
+
         }
     }
 
 
     [MenuItem("Tools/Create Wiremesh")]
-    static void CreateWire() 
+    static void CreateWire()
     {
         GenerateWiremesh window = EditorWindow.GetWindow<GenerateWiremesh>("创建Wiremesh");
         window.minSize = new Vector2(300, 200);
         window.Show();
 
-        
+
     }
 
     void OnGUI()
     {
         GUILayout.Label("【第一步】指定网格对象", GUILayout.Width(150));
         currentSelectTarget = (GameObject)EditorGUILayout.ObjectField("网格对象", currentSelectTarget, typeof(GameObject), true);
-
+        isSkinnedMesh = EditorGUILayout.Toggle("SkinnedMesh", isSkinnedMesh);
+        isQuad = EditorGUILayout.Toggle("TryQuad", isQuad);
         if (GUILayout.Button("处理"))
         {
             OnCreate();
         }
+
+
     }
 
     void OnCreate()
@@ -64,8 +68,17 @@ public class GenerateWiremesh : EditorWindow
 
     string ReadMesh()
     {
-        Mesh mesh = currentSelectTarget.GetComponent<SkinnedMeshRenderer>().sharedMesh;
-        GetMeshEdges(mesh);
+        Mesh mesh = new Mesh();
+        if (isSkinnedMesh)
+        {
+            mesh = currentSelectTarget.GetComponent<SkinnedMeshRenderer>().sharedMesh;
+        }
+        else
+        {
+            mesh = currentSelectTarget.GetComponent<MeshFilter>().sharedMesh;
+        }
+
+        //GetMeshEdges(mesh);
         Edge[] edges = GetMeshEdges(mesh);
         string wireMeshData="";
         for (int i = 0; i < edges.Length; i++)
@@ -111,9 +124,41 @@ public class GenerateWiremesh : EditorWindow
             Vector3 v1 = mesh.vertices[mesh.triangles[i]];
             Vector3 v2 = mesh.vertices[mesh.triangles[i + 1]];
             Vector3 v3 = mesh.vertices[mesh.triangles[i + 2]];
-            edges.Add(new Edge(v1, v2));
-            edges.Add(new Edge(v1, v3));
-            edges.Add(new Edge(v2, v3));
+
+
+            if (isQuad)
+            {
+                float d1 = Vector3.Distance(v1,v2);
+                float d2 = Vector3.Distance(v2,v3);
+                float d3 = Vector3.Distance(v3,v1);
+                if (d1 > d2 && d1 > d3)
+                {
+                    edges.Add(new Edge(v1, v3));
+                    edges.Add(new Edge(v2, v3));
+                }
+
+                if (d2 > d1 && d2 > d3)
+                {
+                    edges.Add(new Edge(v1, v2));
+                    edges.Add(new Edge(v1, v3));
+                }
+
+                if (d3 > d1 && d3 > d2)
+                {
+                    edges.Add(new Edge(v1, v2));
+                    edges.Add(new Edge(v2, v3));
+                }
+            }
+            else
+            {
+                edges.Add(new Edge(v1, v2));
+                edges.Add(new Edge(v1, v3));
+                edges.Add(new Edge(v2, v3));
+            }
+
+
+
+
         }
 
         return edges.ToArray();
